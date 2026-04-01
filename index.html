@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Demos</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #0a0e17;
+  color: #cdd6f4;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#gate, #content { max-width: 480px; width: 100%; padding: 2rem; }
+#gate {
+  text-align: center;
+}
+#gate h1 { font-size: 1.4rem; margin-bottom: 1.5rem; font-weight: 500; }
+#gate input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #1f2d45;
+  border-radius: 8px;
+  background: #111827;
+  color: #cdd6f4;
+  font-size: 1rem;
+  outline: none;
+  margin-bottom: 1rem;
+}
+#gate input:focus { border-color: #3b82f6; }
+#gate button {
+  width: 100%;
+  padding: 0.75rem;
+  border: none;
+  border-radius: 8px;
+  background: #3b82f6;
+  color: #fff;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+#gate button:hover { background: #2563eb; }
+.error { color: #f87171; font-size: 0.875rem; margin-top: 0.5rem; display: none; }
+#content { display: none; }
+#content h1 { font-size: 1.4rem; margin-bottom: 1.5rem; font-weight: 500; }
+#content ul { list-style: none; }
+#content li { margin-bottom: 0.75rem; }
+#content a {
+  display: block;
+  padding: 1rem 1.25rem;
+  background: #111827;
+  border: 1px solid #1f2d45;
+  border-radius: 8px;
+  color: #93c5fd;
+  text-decoration: none;
+  transition: border-color 0.2s, background 0.2s;
+}
+#content a:hover { background: #1a2236; border-color: #3b82f6; }
+#content a span { display: block; color: #6b7fa3; font-size: 0.85rem; margin-top: 0.25rem; }
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <h1>Enter password</h1>
+  <form id="auth">
+    <input type="password" id="pw" placeholder="Password" autofocus>
+    <button type="submit">Unlock</button>
+    <p class="error" id="err">Incorrect password</p>
+  </form>
+</div>
+
+<div id="content">
+  <h1>Demos</h1>
+  <ul>
+    <li><a href="astar-v1.html">A* Pathfinding Visualizer <span>Version 1 &mdash; Claude artifact</span></a></li>
+    <li><a href="astar-v2.html">A* Pathfinding Visualizer <span>Version 2 &mdash; dark theme, weighted nodes</span></a></li>
+  </ul>
+</div>
+
+<script>
+const HASH = '7c1b220c4deb2354fbadf226e1fc3a01de2952012a616c3c843c1a9c0b39c7bf';
+const KEY = 'demos_auth';
+
+async function sha256(msg) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(msg));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function unlock() {
+  document.getElementById('gate').style.display = 'none';
+  document.getElementById('content').style.display = 'block';
+  sessionStorage.setItem(KEY, '1');
+}
+
+if (sessionStorage.getItem(KEY) === '1') unlock();
+
+document.getElementById('auth').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const h = await sha256(document.getElementById('pw').value);
+  if (h === HASH) { unlock(); }
+  else { document.getElementById('err').style.display = 'block'; }
+});
+</script>
+</body>
+</html>

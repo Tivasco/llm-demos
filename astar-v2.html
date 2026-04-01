@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A* Pathfinding Visualizer</title>
+<style>
+/* ── RESET & TOKENS ─────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg0:      #05080f;
+  --bg1:      #0b0f1a;
+  --bg2:      #111827;
+  --bg3:      #1a2236;
+  --border:   #1f2d45;
+  --border2:  #263350;
+  --text:     #cdd6f4;
+  --muted:    #4a5878;
+  --dim:      #2a3654;
+
+  /* Cell colours */
+  --c-empty:  #0b0f1a;
+  --c-wall:   #1e3352;
+  --c-weight: #5c1f00;
+  --c-start:  #065f46;
+  --c-end:    #7f1d1d;
+  --c-open:   #1e3a8a;
+  --c-closed: #4c1d95;
+  --c-path:   #78350f;
+
+  /* Accent */
+  --accent:   #38bdf8;
+  --green:    #34d399;
+  --red:      #f87171;
+  --amber:    #fbbf24;
+  --purple:   #a78bfa;
+  --blue:     #60a5fa;
+}
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+body {
+  background: var(--bg0);
+  color: var(--text);
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 16px 32px;
+  gap: 14px;
+  /* subtle scanline texture */
+  background-image: repeating-linear-gradient(
+    0deg, transparent, transparent 2px,
+    rgba(255,255,255,.008) 2px, rgba(255,255,255,.008) 3px
+  );
+}
+
+/* ── HEADER ─────────────────────────────────────────────────── */
+.hdr { text-align: center; max-width: 700px; }
+
+.hdr h1 {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: clamp(1.1rem, 3vw, 1.55rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  background: linear-gradient(120deg, #38bdf8 0%, #818cf8 40%, #c084fc 80%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 6px;
+}
+
+.hdr p {
+  font-size: 0.72rem;
+  color: var(--muted);
+  letter-spacing: 0.03em;
+  line-height: 1.6;
+}
+.hdr p span {
+  color: var(--dim);
+  margin: 0 4px;
+}
+
+/* ── LAYOUT ─────────────────────────────────────────────────── */
+.wrap {
+  width: 100%;
+  max-width: 960px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ── CANVAS ─────────────────────────────────────────────────── */
+#cv-wrap {
+  width: 100%;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--bg0);
+  cursor: crosshair;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  position: relative;
+  box-shadow: 0 0 0 1px var(--bg3) inset,
+              0 20px 60px rgba(0,0,0,.5);
+}
+
+canvas { display: block; width: 100%; height: auto; }
+
+/* ── CONTROLS ────────────────────────────────────────────────── */
+.ctrl-bar {
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.btn-group { display: flex; gap: 7px; flex-wrap: wrap; }
+
+button {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 7px 16px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  letter-spacing: 0.01em;
+  transition: all 0.12s;
+  white-space: nowrap;
+  outline: none;
+}
+button:active { transform: scale(0.96); }
+
+.btn-run {
+  background: linear-gradient(135deg, #1e40af, #3730a3);
+  color: #bfdbfe;
+  border-color: #1e3a8a;
+  box-shadow: 0 0 0 0 #3b82f680;
+}
+.btn-run:hover {
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
+  box-shadow: 0 0 18px #3b82f640;
+}
+.btn-run.running {
+  background: linear-gradient(135deg, #374151, #1f2937);
+  color: var(--muted);
+  cursor: default;
+}
+
+.btn-ghost {
+  background: var(--bg2);
+  color: #94a3b8;
+  border-color: var(--border);
+}
+.btn-ghost:hover { background: var(--bg3); color: var(--text); border-color: var(--border2); }
+
+.btn-maze {
+  background: linear-gradient(135deg, #1c1a2e, #16162a);
+  color: #a78bfa;
+  border-color: #2d2b4e;
+}
+.btn-maze:hover { background: #221f38; box-shadow: 0 0 14px #7c3aed30; }
+
+.btn-danger {
+  background: #1c0a0a;
+  color: #fca5a5;
+  border-color: #3b1414;
+}
+.btn-danger:hover { background: #3b1414; }
+
+/* ── SPEED SLIDER ─────────────────────────────────────────────── */
+.spd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.spd label {
+  font-size: 0.73rem;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.spd .spd-val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.78rem;
+  color: var(--accent);
+  min-width: 30px;
+  text-align: right;
+}
+
+input[type=range] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--bg3);
+  outline: none;
+  cursor: pointer;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  box-shadow: 0 0 8px var(--accent);
+}
+input[type=range]::-moz-range-thumb {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: none;
+  cursor: pointer;
+}
+
+/* ── STATS ───────────────────────────────────────────────────── */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.stat-card {
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 11px 13px;
+  position: relative;
+  overflow: hidden;
+}
+.stat-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  border-radius: 9px 9px 0 0;
+}
+.stat-card:nth-child(1)::before { background: var(--blue); }
+.stat-card:nth-child(2)::before { background: var(--purple); }
+.stat-card:nth-child(3)::before { background: var(--amber); }
+.stat-card:nth-child(4)::before { background: var(--green); }
+
+.stat-lbl {
+  font-size: 0.63rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  margin-bottom: 5px;
+}
+
+.stat-val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+  transition: color 0.2s;
+}
+.stat-val.updated { color: var(--accent); }
+
+/* ── LEGEND ──────────────────────────────────────────────────── */
+.legend {
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 10px 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+}
+
+.leg-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.73rem;
+  color: var(--muted);
+}
+
+.leg-sw {
+  width: 12px; height: 12px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+/* ── MESSAGE ─────────────────────────────────────────────────── */
+#msg {
+  display: none;
+  background: #180a0a;
+  border: 1px solid #5b1c1c;
+  color: #f87171;
+  border-radius: 8px;
+  padding: 10px 16px;
+  text-align: center;
+  font-size: 0.875rem;
+  font-weight: 600;
+  animation: shake 0.3s ease;
+}
+@keyframes shake {
+  0%,100%{transform:translateX(0)} 25%{transform:translateX(-4px)} 75%{transform:translateX(4px)}
+}
+
+/* ── RESPONSIVE ──────────────────────────────────────────────── */
+@media (max-width: 580px) {
+  .stats { grid-template-columns: repeat(2, 1fr); }
+  .spd   { margin-left: 0; }
+}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <h1>⬡ A* Pathfinding Visualizer</h1>
+  <p>
+    Left-drag: wall<span>·</span>Right-drag: erase<span>·</span>Shift+drag: weight (cost=5)<span>·</span>Drag the S / E nodes to reposition
+  </p>
+</div>
+
+<div class="wrap">
+  <div id="cv-wrap"><canvas id="cv"></canvas></div>
+
+  <div id="msg"></div>
+
+  <div class="ctrl-bar">
+    <div class="btn-group">
+      <button class="btn-run"   id="btn-run">▶ Visualize A*</button>
+      <button class="btn-maze"  id="btn-maze">⬡ Random Maze</button>
+      <button class="btn-ghost" id="btn-cp">Clear Path</button>
+      <button class="btn-danger" id="btn-ca">Clear All</button>
+    </div>
+    <div class="spd">
+      <label for="spd">Speed</label>
+      <input type="range" id="spd" min="1" max="20" value="5">
+      <span class="spd-val" id="spd-v">5×</span>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat-card">
+      <div class="stat-lbl">Algorithm Steps</div>
+      <div class="stat-val" id="sv-steps">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-lbl">Cells Visited</div>
+      <div class="stat-val" id="sv-vis">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-lbl">Path Cost</div>
+      <div class="stat-val" id="sv-cost">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-lbl">Elapsed</div>
+      <div class="stat-val" id="sv-time">—</div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="leg-item"><div class="leg-sw" style="background:#0f6643;border-color:#0a4a30"></div>Start node</div>
+    <div class="leg-item"><div class="leg-sw" style="background:#991b1b;border-color:#7f1d1d"></div>End node</div>
+    <div class="leg-item"><div class="leg-sw" style="background:#1e3352;border-color:#26415e"></div>Wall</div>
+    <div class="leg-item"><div class="leg-sw" style="background:#5c1f00;border-color:#7c2d0a"></div>Weight (cost=5)</div>
+    <div class="leg-item"><div class="leg-sw" style="background:#1e40af;border-color:#1d4ed8"></div>Open set — frontier</div>
+    <div class="leg-item"><div class="leg-sw" style="background:#5b21b6;border-color:#6d28d9"></div>Closed set — visited</div>
+    <div class="leg-item"><div class="leg-sw" style="background:#92400e;border-color:#b45309"></div>Shortest path</div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ================================================================
+// CONFIG
+// ================================================================
+const COLS = 30, ROWS = 20;
+const WEIGHT_COST = 5;
+
+// ================================================================
+// STATE — single authoritative object; no free-floating globals
+// ================================================================
+const S = {
+  cells:   null,       // S.cells[r][c] = { wall, weight, algo }
+  start:   { r: 10, c: 3  },
+  end:     { r: 10, c: 26 },
+  running: false,
+  done:    false,
+  noPath:  false,
+  steps:   0,
+  visited: 0,
+  cost:    0,
+  t0:      0,
+  elapsed: 0,
+};
+
+// ================================================================
+// GRID — cell data management
+// ================================================================
+const Grid = (() => {
+  const mk = () => ({ wall: false, weight: false, algo: '' });
+
+  function init() {
+    S.cells = Array.from({ length: ROWS }, () =>
+      Array.from({ length: COLS }, mk));
+  }
+
+  // Reset only the algorithm-state overlay; keep walls/weights intact
+  function clearAlgo() {
+    for (let r = 0; r < ROWS; r++)
+      for (let c = 0; c < COLS; c++)
+        S.cells[r][c].algo = '';
+  }
+
+  const inBounds = (r, c) => r >= 0 && r < ROWS && c >= 0 && c < COLS;
+
+  // 4-directional passable neighbours (diagonal movement not allowed;
+  // Manhattan heuristic is only admissible for axis-aligned moves)
+  function neighbors(r, c) {
+    return [[-1,0],[1,0],[0,-1],[0,1]]
+      .map(([dr,dc]) => [r+dr, c+dc])
+      .filter(([nr,nc]) => inBounds(nr,nc) && !S.cells[nr][nc].wall);
+  }
+
+  // Cost to ENTER cell (r,c) — weighted terrain costs WEIGHT_COST
+  const moveCost = (r, c) => S.cells[r][c].weight ? WEIGHT_COST : 1;
+
+  return { init, clearAlgo, inBounds, neighbors, moveCost };
+})();
+
+// ================================================================
+// MIN-HEAP — binary heap ordered by .f (f = g + h)
+// Required for A* to run in O((V+E) log V) time.
+// ================================================================
+class MinHeap {
+  constructor() { this._h = []; }
+  get size()  { return this._h.length; }
+  get empty() { return this._h.length === 0; }
+
+  push(item) {
+    this._h.push(item);
+    this._up(this._h.length - 1);
+  }
+
+  pop() {
+    const top  = this._h[0];
+    const last = this._h.pop();
+    if (this._h.length) { this._h[0] = last; this._dn(0); }
+    return top;
+  }
+
+  _up(i) {
+    while (i > 0) {
+      const p = (i - 1) >>> 1;
+      if (this._h[p].f <= this._h[i].f) break;
+      [this._h[p], this._h[i]] = [this._h[i], this._h[p]];
+      i = p;
+    }
+  }
+
+  _dn(i) {
+    const n = this._h.length;
+    for (;;) {
+      let s = i;
+      const l = 2*i+1, r = 2*i+2;
+      if (l < n && this._h[l].f < this._h[s].f) s = l;
+      if (r < n && this._h[r].f < this._h[s].f) s = r;
+      if (s === i) break;
+      [this._h[s], this._h[i]] = [this._h[i], this._h[s]];
+      i = s;
+    }
+  }
+}
+
+// ================================================================
+// A* ALGORITHM — step-by-step execution engine
+// ================================================================
+const AStar = (() => {
+  let heap, from, gScore, closed;
+
+  // Compact integer cell key (avoids string allocation per step)
+  const key = (r, c) => r * COLS + c;
+  const keyR = k => (k / COLS) | 0;
+  const keyC = k => k % COLS;
+
+  // ── Heuristic ──────────────────────────────────────────────────
+  // Manhattan distance h(n) = |r-er| + |c-ec|.
+  //
+  // Why this is admissible: with no diagonal movement and minimum
+  // edge cost of 1, you need AT LEAST |Δr|+|Δc| steps to reach
+  // the goal, so h never overestimates the true cost.
+  //
+  // Why this is consistent (monotone): for any edge (n → n'),
+  // h(n) ≤ cost(n,n') + h(n') because moving one cell changes
+  // Manhattan distance by at most ±1 while the step costs ≥ 1.
+  // Consistency means every node we pop is guaranteed optimal and
+  // can be safely added to the closed set without re-expansion.
+  const heuristic = (r, c) => {
+    const { r: er, c: ec } = S.end;
+    return Math.abs(r - er) + Math.abs(c - ec);
+  };
+
+  function init() {
+    heap   = new MinHeap();
+    from   = new Map();   // nk → parent key (integer)
+    gScore = new Map();   // key → best known g-cost
+    closed = new Set();   // keys of permanently settled nodes
+
+    const { r: sr, c: sc } = S.start;
+    const h0 = heuristic(sr, sc);
+    gScore.set(key(sr, sc), 0);
+    heap.push({ r: sr, c: sc, f: h0 });
+
+    S.steps = S.visited = S.cost = S.elapsed = 0;
+    S.done = S.noPath = false;
+    S.t0 = performance.now();
+  }
+
+  // ── Single A* iteration ────────────────────────────────────────
+  // Returns 'found' | 'no-path' | 'continue'
+  //
+  // We use LAZY DELETION to handle duplicate open-set entries:
+  // when we discover a better path to node N, we push a new entry
+  // into the heap instead of updating the old one in-place (which
+  // would require a decrease-key operation). The stale old entry
+  // remains in the heap; we discard it when it surfaces by checking
+  // whether N is already in the closed set.
+  function step() {
+    if (heap.empty) return 'no-path';
+
+    const { r, c, f } = heap.pop();
+    const k = key(r, c);
+
+    // Lazy deletion: skip stale entries for already-settled nodes
+    if (closed.has(k)) return 'continue';
+    closed.add(k);
+    S.steps++;
+
+    const { r: er, c: ec } = S.end;
+    const { r: sr, c: sc } = S.start;
+
+    // ── Goal check ──────────────────────────────────────────────
+    // With a consistent heuristic, the first time we pop the goal
+    // node it is guaranteed to be on an optimal path — we're done.
+    if (r === er && c === ec) {
+      tracePath(r, c);
+      return 'found';
+    }
+
+    // Mark settled; preserve visual identity of start node
+    if (!(r === sr && c === sc)) {
+      S.cells[r][c].algo = 'closed';
+      S.visited++;
+    }
+
+    const gCur = gScore.get(k);
+
+    for (const [nr, nc] of Grid.neighbors(r, c)) {
+      const nk = key(nr, nc);
+      if (closed.has(nk)) continue;
+
+      // Tentative g: cost of best known path to current + edge cost
+      const gNew = gCur + Grid.moveCost(nr, nc);
+
+      // Only proceed if this is strictly better than what we know
+      if (gNew < (gScore.get(nk) ?? Infinity)) {
+        from.set(nk, k);          // record optimal predecessor
+        gScore.set(nk, gNew);
+        // f = g + h — the A* priority function
+        heap.push({ r: nr, c: nc, f: gNew + heuristic(nr, nc) });
+
+        // Mark frontier (end node keeps its visual identity)
+        if (!(nr === er && nc === ec)) S.cells[nr][nc].algo = 'open';
+      }
+    }
+
+    return 'continue';
+  }
+
+  // ── Path reconstruction ─────────────────────────────────────────
+  // Walk the `from` map backwards from goal to start, marking PATH.
+  // The g-score at the goal IS the total optimal path cost.
+  function tracePath(er, ec) {
+    S.cost = gScore.get(key(er, ec));
+    const { r: sr, c: sc } = S.start;
+    let k = key(er, ec);
+
+    while (from.has(k)) {
+      k = from.get(k);
+      const pr = keyR(k), pc = keyC(k);
+      if (!(pr === sr && pc === sc)) S.cells[pr][pc].algo = 'path';
+    }
+  }
+
+  return { init, step };
+})();
+
+// ================================================================
+// MAZE — recursive-division algorithm
+// ================================================================
+const Maze = (() => {
+  const rnd = (lo, hi) => lo + Math.floor(Math.random() * (hi - lo + 1));
+
+  // Recursively divide the chamber bounded by [r1, r1+h) × [c1, c1+w)
+  // by adding a wall with a single passage, then subdividing each half.
+  function divide(r1, c1, h, w) {
+    if (h <= 2 || w <= 2) return; // chamber too small to subdivide
+
+    // Choose orientation: split the longer axis; flip a coin on ties
+    const horiz = h === w ? Math.random() < 0.5 : h > w;
+
+    if (horiz) {
+      // Horizontal wall row — must leave at least 1 row on each side
+      const wr = rnd(r1 + 1, r1 + h - 2);
+      const gc = rnd(c1, c1 + w - 1); // column of the passage gap
+      for (let c = c1; c < c1 + w; c++)
+        if (c !== gc) S.cells[wr][c].wall = true;
+      divide(r1,   c1, wr - r1,       w);
+      divide(wr+1, c1, r1 + h - wr - 1, w);
+    } else {
+      // Vertical wall column
+      const wc = rnd(c1 + 1, c1 + w - 2);
+      const gr = rnd(r1, r1 + h - 1); // row of the passage gap
+      for (let r = r1; r < r1 + h; r++)
+        if (r !== gr) S.cells[r][wc].wall = true;
+      divide(r1, c1,   h, wc - c1);
+      divide(r1, wc+1, h, c1 + w - wc - 1);
+    }
+  }
+
+  function generate() {
+    Grid.init();
+    divide(0, 0, ROWS, COLS);
+    // Guarantee start & end are accessible
+    const { r: sr, c: sc } = S.start;
+    const { r: er, c: ec } = S.end;
+    S.cells[sr][sc].wall = false;
+    S.cells[er][ec].wall = false;
+    // Clear immediate neighbours so there's always an entry/exit
+    for (const [nr,nc] of Grid.neighbors(sr,sc)) S.cells[nr][nc].wall = false;
+    for (const [nr,nc] of Grid.neighbors(er,ec)) S.cells[nr][nc].wall = false;
+  }
+
+  return { generate };
+})();
+
+// ================================================================
+// RENDERER — canvas drawing
+// ================================================================
+const Renderer = (() => {
+  let cv, ctx, cs; // canvas element, 2d context, cell size (px)
+
+  // Cell fill colours — ordered by render priority in cellColor()
+  const C = {
+    bg:     '#04060e', // canvas background (shows as 1-px cell gap)
+    empty:  '#080e1d',
+    wall:   '#1a3050',
+    weight: '#5c1f00',
+    start:  '#065f46',
+    end:    '#991b1b',
+    open:   '#1e3a8a',
+    closed: '#5b21b6',
+    path:   '#92400e',
+  };
+
+  function init(canvas) {
+    cv  = canvas;
+    ctx = cv.getContext('2d');
+    resize();
+  }
+
+  function resize() {
+    cs = Math.max(14, Math.floor(cv.parentElement.clientWidth / COLS));
+    cv.width  = cs * COLS;
+    cv.height = cs * ROWS;
+  }
+
+  function cellColor(r, c) {
+    // Start/end always win regardless of algorithm overlay
+    if (r === S.start.r && c === S.start.c) return C.start;
+    if (r === S.end.r   && c === S.end.c  ) return C.end;
+    const cell = S.cells[r][c];
+    // Algorithm visualization overlay (cleared by clearAlgo)
+    switch (cell.algo) {
+      case 'path':   return C.path;
+      case 'closed': return C.closed;
+      case 'open':   return C.open;
+    }
+    // Base terrain
+    if (cell.wall)   return C.wall;
+    if (cell.weight) return C.weight;
+    return C.empty;
+  }
+
+  function draw() {
+    // Fill background (visible as 1-px gap between cells = free grid)
+    ctx.fillStyle = C.bg;
+    ctx.fillRect(0, 0, cv.width, cv.height);
+
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const x = c * cs, y = r * cs;
+        ctx.fillStyle = cellColor(r, c);
+        ctx.fillRect(x + 1, y + 1, cs - 2, cs - 2);
+
+        // Weight symbol — only when not covered by an algo overlay
+        if (S.cells[r][c].weight && S.cells[r][c].algo === '') {
+          ctx.fillStyle = '#f97316';
+          ctx.font = `${Math.max(7, (cs * 0.46) | 0)}px monospace`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('≋', x + cs / 2, y + cs / 2 + 0.5);
+        }
+      }
+    }
+
+    // Node labels
+    nodeLabel(S.start.r, S.start.c, 'S', '#6ee7b7');
+    nodeLabel(S.end.r,   S.end.c,   'E', '#fca5a5');
+  }
+
+  function nodeLabel(r, c, lbl, col) {
+    ctx.fillStyle = col;
+    ctx.font = `bold ${Math.max(7, (cs * 0.5) | 0)}px 'Space Grotesk', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(lbl, c * cs + cs / 2, r * cs + cs / 2);
+  }
+
+  // Convert a mouse/touch event to grid { r, c }
+  function cellAt(e) {
+    const rect = cv.getBoundingClientRect();
+    const sx = cv.width  / rect.width;
+    const sy = cv.height / rect.height;
+    return {
+      r: Math.floor((e.clientY - rect.top)  * sy / cs),
+      c: Math.floor((e.clientX - rect.left) * sx / cs),
+    };
+  }
+
+  return { init, resize, draw, cellAt };
+})();
+
+// ================================================================
+// ANIMATION — drives the step-by-step A* execution
+// ================================================================
+const Anim = (() => {
+  let raf = null;
+
+  function start() {
+    if (S.running) return;
+    S.running = true;
+    Grid.clearAlgo();
+    AStar.init();
+    UI.hideMsg();
+    UI.setRunBtn(true);
+    loop();
+  }
+
+  function stop() {
+    if (raf) { cancelAnimationFrame(raf); raf = null; }
+    S.running = false;
+    UI.setRunBtn(false);
+  }
+
+  function loop() {
+    const n = +document.getElementById('spd').value;
+    let res = 'continue';
+
+    // Execute n steps per animation frame (controlled by speed slider)
+    for (let i = 0; i < n && res === 'continue'; i++) res = AStar.step();
+
+    S.elapsed = Math.round(performance.now() - S.t0);
+    Renderer.draw();
+    UI.refreshStats();
+
+    if (res === 'found') {
+      S.running = false; S.done = true;
+      UI.setRunBtn(false);
+      Renderer.draw();
+      UI.refreshStats();
+    } else if (res === 'no-path') {
+      S.running = false; S.noPath = true;
+      UI.setRunBtn(false);
+      UI.showMsg('⚠ No path exists between the Start and End nodes.');
+      UI.refreshStats();
+    } else {
+      raf = requestAnimationFrame(loop);
+    }
+  }
+
+  return { start, stop };
+})();
+
+// ================================================================
+// INPUT — mouse & touch interaction
+// ================================================================
+const Input = (() => {
+  let pressed = false;
+  let mode    = null; // 'wall'|'erase'|'weight'|'drag-s'|'drag-e'
+
+  function down(e) {
+    if (S.running) return;
+    e.preventDefault();
+    pressed = true;
+    const pt = e.touches ? e.touches[0] : e;
+    const { r, c } = Renderer.cellAt(pt);
+    if (!Grid.inBounds(r, c)) return;
+
+    // Priority: drag start/end node > erase > weight > wall
+    if (r === S.start.r && c === S.start.c) { mode = 'drag-s'; return; }
+    if (r === S.end.r   && c === S.end.c  ) { mode = 'drag-e'; return; }
+
+    if (e.button === 2 || (e.touches && e.touches.length > 1)) {
+      mode = 'erase';
+    } else if (e.shiftKey) {
+      mode = 'weight';
+    } else {
+      mode = 'wall';
+    }
+    paint(r, c);
+  }
+
+  function move(e) {
+    if (!pressed || S.running) return;
+    e.preventDefault();
+    const pt = e.touches ? e.touches[0] : e;
+    const { r, c } = Renderer.cellAt(pt);
+    if (!Grid.inBounds(r, c)) return;
+
+    if (mode === 'drag-s') {
+      if (r === S.end.r && c === S.end.c) return; // can't merge with end
+      S.start = { r, c };
+      S.cells[r][c].wall = false; S.cells[r][c].weight = false;
+      Renderer.draw();
+    } else if (mode === 'drag-e') {
+      if (r === S.start.r && c === S.start.c) return;
+      S.end = { r, c };
+      S.cells[r][c].wall = false; S.cells[r][c].weight = false;
+      Renderer.draw();
+    } else {
+      paint(r, c);
+    }
+  }
+
+  function up() { pressed = false; mode = null; }
+
+  function paint(r, c) {
+    if (r === S.start.r && c === S.start.c) return;
+    if (r === S.end.r   && c === S.end.c  ) return;
+    const cell = S.cells[r][c];
+    if      (mode === 'erase' ) { cell.wall = false; cell.weight = false; }
+    else if (mode === 'weight') { cell.wall = false; cell.weight = true;  }
+    else                        { cell.wall = true;  cell.weight = false; cell.algo = ''; }
+    Renderer.draw();
+  }
+
+  function bind(canvas) {
+    canvas.addEventListener('mousedown',   down);
+    canvas.addEventListener('mousemove',   move);
+    window.addEventListener('mouseup',     up);
+    canvas.addEventListener('contextmenu', e => e.preventDefault());
+    canvas.addEventListener('touchstart',  down, { passive: false });
+    canvas.addEventListener('touchmove',   move, { passive: false });
+    canvas.addEventListener('touchend',    up);
+  }
+
+  return { bind };
+})();
+
+// ================================================================
+// UI — buttons, stats, messages
+// ================================================================
+const UI = (() => {
+  const el = id => document.getElementById(id);
+
+  function resetCounters() {
+    S.steps = S.visited = S.cost = S.elapsed = 0;
+    S.done = S.noPath = false;
+  }
+
+  function refreshStats() {
+    el('sv-steps').textContent = S.steps;
+    el('sv-vis').textContent   = S.visited;
+    el('sv-cost').textContent  = S.done   ? S.cost                : '—';
+    el('sv-time').textContent  = (S.running || S.done || S.noPath)
+                                   ? S.elapsed + 'ms' : '—';
+  }
+
+  function showMsg(txt) {
+    const m = el('msg');
+    m.textContent = txt;
+    m.style.display = 'block';
+  }
+
+  function hideMsg()         { el('msg').style.display = 'none'; }
+
+  function setRunBtn(running) {
+    const btn = el('btn-run');
+    btn.classList.toggle('running', running);
+    btn.textContent = running ? '⏸ Running…' : '▶ Visualize A*';
+  }
+
+  function init() {
+    el('btn-run').addEventListener('click', () => {
+      if (!S.running) Anim.start();
+    });
+
+    el('btn-cp').addEventListener('click', () => {
+      Anim.stop();
+      Grid.clearAlgo();
+      resetCounters(); hideMsg(); refreshStats(); Renderer.draw();
+    });
+
+    el('btn-ca').addEventListener('click', () => {
+      Anim.stop();
+      Grid.init();
+      resetCounters(); hideMsg(); refreshStats(); Renderer.draw();
+    });
+
+    el('btn-maze').addEventListener('click', () => {
+      Anim.stop();
+      Maze.generate();
+      resetCounters(); hideMsg(); refreshStats(); Renderer.draw();
+    });
+
+    const spd = el('spd'), spdV = el('spd-v');
+    spd.addEventListener('input', () => { spdV.textContent = spd.value + '×'; });
+  }
+
+  return { init, refreshStats, showMsg, hideMsg, setRunBtn };
+})();
+
+// ================================================================
+// BOOTSTRAP
+// ================================================================
+window.addEventListener('DOMContentLoaded', () => {
+  const canvas = document.getElementById('cv');
+  Grid.init();
+  Renderer.init(canvas);
+  Input.bind(canvas);
+  UI.init();
+  Renderer.draw();
+
+  window.addEventListener('resize', () => {
+    Renderer.resize();
+    Renderer.draw();
+  });
+});
+</script>
+</body>
+</html>
