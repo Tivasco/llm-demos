@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A* Pathfinding Visualizer &mdash; Model Comparison</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #0a0e17;
+  color: #cdd6f4;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+.container { max-width: 520px; width: 100%; }
+h1 { font-size: 1.4rem; font-weight: 500; margin-bottom: 0.35rem; }
+.subtitle { color: #4a5878; font-size: 0.9rem; margin-bottom: 2rem; }
+ul { list-style: none; }
+li { margin-bottom: 0.75rem; }
+a.card {
+  display: block;
+  padding: 1rem 1.25rem;
+  background: #111827;
+  border: 1px solid #1f2d45;
+  border-radius: 8px;
+  color: #93c5fd;
+  text-decoration: none;
+  transition: border-color 0.2s, background 0.2s;
+}
+a.card:hover { background: #1a2236; border-color: #3b82f6; }
+a.card .name { font-weight: 500; font-size: 1rem; }
+a.card span { display: block; color: #6b7fa3; font-size: 0.85rem; margin-top: 0.25rem; }
+a.prompt-link {
+  display: block;
+  margin-top: 1.5rem;
+  padding: 0.85rem 1.25rem;
+  background: #0f1520;
+  border: 1px dashed #263350;
+  border-radius: 8px;
+  color: #6b7fa3;
+  text-decoration: none;
+  font-size: 0.9rem;
+  transition: border-color 0.2s, color 0.2s;
+}
+a.prompt-link:hover { border-color: #3b82f6; color: #93c5fd; }
+.back {
+  display: inline-block;
+  margin-top: 2rem;
+  color: #4a5878;
+  text-decoration: none;
+  font-size: 0.85rem;
+}
+.back:hover { color: #93c5fd; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>A* Pathfinding Visualizer</h1>
+  <p class="subtitle">Same prompt, different models &mdash; zero-shot comparison</p>
+  <ul>
+    <li>
+      <a class="card" href="openweb-qwen35-27b.html">
+        <span class="name">Openweb-Qwen3.5 27B</span>
+        <span>Open-weight 27B parameter model</span>
+      </a>
+    </li>
+    <li>
+      <a class="card" href="claude-sonnet-4.6.html">
+        <span class="name">Claude Sonnet 4.6</span>
+        <span>Anthropic &mdash; closed-weight</span>
+      </a>
+    </li>
+  </ul>
+  <a class="prompt-link" href="prompt.html">View the exact prompt used &rarr;</a>
+  <br>
+  <a class="back" href="..">&larr; Back to all demos</a>
+</div>
+</body>
+</html>

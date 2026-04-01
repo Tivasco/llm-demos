@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prompt &mdash; A* Pathfinding Visualizer</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'JetBrains Mono', monospace;
+  background: #0a0e17;
+  color: #cdd6f4;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  padding: 3rem 1.5rem;
+}
+.container { max-width: 760px; width: 100%; }
+h1 {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 1.3rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  color: #93c5fd;
+}
+.meta {
+  font-size: 0.8rem;
+  color: #4a5878;
+  margin-bottom: 2rem;
+}
+pre {
+  background: #111827;
+  border: 1px solid #1f2d45;
+  border-radius: 10px;
+  padding: 1.5rem;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  line-height: 1.65;
+  font-size: 0.85rem;
+  color: #b4bcd0;
+  overflow-x: auto;
+}
+pre strong { color: #e2e8f0; font-weight: 600; }
+.back {
+  display: inline-block;
+  margin-top: 2rem;
+  color: #93c5fd;
+  text-decoration: none;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 0.9rem;
+}
+.back:hover { text-decoration: underline; }
+button {
+  margin-top: 1rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid #1f2d45;
+  border-radius: 6px;
+  background: #1a2236;
+  color: #93c5fd;
+  font-size: 0.8rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+button:hover { background: #263350; }
+.copied { color: #4ade80; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Prompt</h1>
+  <p class="meta">The exact prompt given to both models &mdash; zero-shot, single turn, no follow-ups.</p>
+  <pre id="prompt">Build a complete, self-contained single HTML file (no external libraries or CDN imports)
+that implements an interactive A* pathfinding visualizer with the following requirements:
+
+<strong>## Grid &amp; Interaction</strong>
+- Render a 30x20 grid of cells using an HTML5 Canvas element
+- The user can left-click-drag to draw wall cells (impassable)
+- The user can right-click-drag to erase walls
+- There is always exactly one Start node (green) and one End node (red)
+- The user can drag the Start and End nodes to reposition them
+- Holding Shift while drawing sets "weighted" terrain cells (cost = 5, visually distinct, e.g. sand-colored)
+
+<strong>## Algorithm</strong>
+- Implement A* from scratch using a min-heap or equivalent priority queue (no shortcuts)
+- Use Manhattan distance as the heuristic (no diagonal movement)
+- During animation, visually distinguish: unexplored, in Open Set (frontier), in Closed Set (visited), and Final Path cells
+- The final shortest path must be highlighted distinctly once found
+
+<strong>## Controls UI (rendered in HTML below the canvas)</strong>
+- "Visualize" button: starts the animated step-by-step execution
+- "Speed" slider: controls animation speed from slow (1 step/frame) to fast (20 steps/frame)
+- "Clear Path" button: resets only the algorithm state, keeping walls/weights intact
+- "Clear All" button: resets the entire grid
+- "Random Maze" button: generates a random maze using recursive division or similar algorithm
+
+<strong>## Visual &amp; UX requirements</strong>
+- The UI must look polished and modern — use a dark theme with clear visual hierarchy
+- Cell colors must be visually distinct and intuitive (not just random colors)
+- Display a live stat panel showing: steps taken, cells visited, path length (in cost units), and elapsed time in ms
+- If no path exists, show a clear user-facing message (not a console error)
+- The canvas must be responsive to the container width
+
+<strong>## Code quality requirements</strong>
+- Use clean, modular JavaScript — separate concerns into logical sections or objects (grid, algorithm, renderer, UI)
+- No global variable soup — use a single state object or module pattern
+- Comments must explain the A* logic specifically, not just restate what the code does
+
+Deliver only the complete HTML file content, nothing else.</pre>
+  <button onclick="navigator.clipboard.writeText(document.getElementById('prompt').textContent).then(()=>{this.textContent='Copied!';this.classList.add('copied');setTimeout(()=>{this.textContent='Copy to clipboard';this.classList.remove('copied')},2000)})">Copy to clipboard</button>
+  <br>
+  <a class="back" href=".">&larr; Back</a>
+</div>
+</body>
+</html>
