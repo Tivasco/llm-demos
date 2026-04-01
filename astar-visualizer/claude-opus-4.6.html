@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A* Pathfinding Visualizer</title>
+<style>
+  /* ── Reset & Base ─────────────────────────────────────────────── */
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg-primary: #0f1117;
+    --bg-secondary: #1a1d27;
+    --bg-tertiary: #242836;
+    --bg-card: #1e2230;
+    --border: #2e3348;
+    --text-primary: #e8eaf0;
+    --text-secondary: #8b91a8;
+    --text-muted: #5c6280;
+    --accent-green: #34d399;
+    --accent-green-dim: #065f46;
+    --accent-red: #f87171;
+    --accent-red-dim: #7f1d1d;
+    --accent-blue: #60a5fa;
+    --accent-blue-dim: #1e3a5f;
+    --accent-purple: #a78bfa;
+    --accent-yellow: #fbbf24;
+    --accent-orange: #fb923c;
+    --cell-wall: #3b4261;
+    --cell-weight: #92702a;
+    --cell-open: rgba(96, 165, 250, 0.35);
+    --cell-closed: rgba(167, 139, 250, 0.3);
+    --cell-path: #fbbf24;
+    --cell-empty: #181c28;
+    --grid-line: #232738;
+    --btn-primary-bg: #3b82f6;
+    --btn-primary-hover: #2563eb;
+    --btn-danger-bg: #dc2626;
+    --btn-danger-hover: #b91c1c;
+    --btn-secondary-bg: #374151;
+    --btn-secondary-hover: #4b5563;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --shadow: 0 4px 24px rgba(0,0,0,0.4);
+  }
+
+  body {
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 16px;
+  }
+
+  h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    margin-bottom: 4px;
+    background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .subtitle {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    margin-bottom: 18px;
+    letter-spacing: 0.02em;
+  }
+
+  /* ── Canvas Container ─────────────────────────────────────────── */
+  .canvas-wrap {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 10px;
+    box-shadow: var(--shadow);
+    width: 100%;
+    max-width: 902px;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    border-radius: var(--radius-md);
+    cursor: crosshair;
+  }
+
+  /* ── Message Banner ───────────────────────────────────────────── */
+  .message-banner {
+    width: 100%;
+    max-width: 902px;
+    min-height: 36px;
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    font-size: 0.82rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    transition: background 0.3s, color 0.3s, opacity 0.3s;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .message-banner.visible { opacity: 1; pointer-events: auto; }
+  .message-banner.error   { background: rgba(248,113,113,0.15); color: var(--accent-red); border: 1px solid rgba(248,113,113,0.25); }
+  .message-banner.success { background: rgba(52,211,153,0.12); color: var(--accent-green); border: 1px solid rgba(52,211,153,0.2); }
+  .message-banner.info    { background: rgba(96,165,250,0.12); color: var(--accent-blue); border: 1px solid rgba(96,165,250,0.2); }
+
+  /* ── Controls Panel ───────────────────────────────────────────── */
+  .controls {
+    width: 100%;
+    max-width: 902px;
+    margin-top: 14px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+
+  button {
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 9px 18px;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+    letter-spacing: 0.01em;
+  }
+  button:active { transform: scale(0.97); }
+
+  .btn-primary { background: var(--btn-primary-bg); color: #fff; }
+  .btn-primary:hover { background: var(--btn-primary-hover); box-shadow: 0 0 16px rgba(59,130,246,0.3); }
+  .btn-primary:disabled { background: #2a3a5c; color: #5c6e9e; cursor: not-allowed; box-shadow: none; }
+
+  .btn-danger  { background: var(--btn-danger-bg); color: #fff; }
+  .btn-danger:hover { background: var(--btn-danger-hover); }
+
+  .btn-secondary { background: var(--btn-secondary-bg); color: var(--text-primary); }
+  .btn-secondary:hover { background: var(--btn-secondary-hover); }
+
+  .btn-accent {
+    background: linear-gradient(135deg, #7c3aed, #6d28d9);
+    color: #fff;
+  }
+  .btn-accent:hover { box-shadow: 0 0 16px rgba(124,58,237,0.35); }
+
+  .speed-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+    background: var(--bg-tertiary);
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+  }
+
+  .speed-group label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .speed-group span {
+    font-size: 0.78rem;
+    color: var(--accent-blue);
+    font-weight: 700;
+    min-width: 18px;
+    text-align: right;
+  }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100px;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px; height: 14px;
+    background: var(--accent-blue);
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 0 6px rgba(96,165,250,0.4);
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 14px; height: 14px;
+    background: var(--accent-blue);
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+  }
+
+  /* ── Stats Panel ──────────────────────────────────────────────── */
+  .stats-panel {
+    width: 100%;
+    max-width: 902px;
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+
+  .stat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 12px 14px;
+    text-align: center;
+  }
+
+  .stat-card .stat-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    font-weight: 600;
+  }
+
+  .stat-card .stat-value {
+    font-size: 1.35rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+
+  .stat-card:nth-child(1) .stat-value { color: var(--accent-purple); }
+  .stat-card:nth-child(2) .stat-value { color: var(--accent-blue); }
+  .stat-card:nth-child(3) .stat-value { color: var(--accent-yellow); }
+  .stat-card:nth-child(4) .stat-value { color: var(--accent-green); }
+
+  /* ── Legend ────────────────────────────────────────────────────── */
+  .legend {
+    width: 100%;
+    max-width: 902px;
+    margin-top: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    justify-content: center;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  .legend-swatch {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+
+  /* ── Responsive ───────────────────────────────────────────────── */
+  @media (max-width: 640px) {
+    .stats-panel { grid-template-columns: repeat(2, 1fr); }
+    .controls { justify-content: center; }
+    .speed-group { margin-left: 0; width: 100%; justify-content: center; }
+  }
+</style>
+</head>
+<body>
+
+<h1>A* Pathfinding Visualizer</h1>
+<p class="subtitle">Draw walls · Shift+draw for weighted terrain · Drag start/end nodes</p>
+
+<div class="canvas-wrap">
+  <canvas id="grid-canvas"></canvas>
+</div>
+
+<div class="message-banner" id="msg-banner"></div>
+
+<div class="controls">
+  <button class="btn-primary" id="btn-visualize">▶ Visualize</button>
+  <button class="btn-secondary" id="btn-clear-path">Clear Path</button>
+  <button class="btn-danger" id="btn-clear-all">Clear All</button>
+  <button class="btn-accent" id="btn-maze">Random Maze</button>
+  <div class="speed-group">
+    <label for="speed-slider">Speed</label>
+    <input type="range" id="speed-slider" min="1" max="20" value="5">
+    <span id="speed-val">5</span>
+  </div>
+</div>
+
+<div class="stats-panel">
+  <div class="stat-card"><div class="stat-label">Steps</div><div class="stat-value" id="stat-steps">0</div></div>
+  <div class="stat-card"><div class="stat-label">Visited</div><div class="stat-value" id="stat-visited">0</div></div>
+  <div class="stat-card"><div class="stat-label">Path Cost</div><div class="stat-value" id="stat-pathlen">—</div></div>
+  <div class="stat-card"><div class="stat-label">Time (ms)</div><div class="stat-value" id="stat-time">0</div></div>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-swatch" style="background:#34d399"></div>Start</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#f87171"></div>End</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#3b4261"></div>Wall</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#92702a"></div>Weight (5×)</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:rgba(96,165,250,0.5)"></div>Frontier</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:rgba(167,139,250,0.45)"></div>Visited</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#fbbf24"></div>Path</div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   A* PATHFINDING VISUALIZER
+   ═══════════════════════════════════════════════════════════════════
+   Architecture:
+     - State:     single source-of-truth object for all grid/algo data
+     - Grid:      cell types and cost logic
+     - MinHeap:   binary-heap priority queue for O(log n) extract-min
+     - AStar:     the algorithm itself, producing step-by-step snapshots
+     - Renderer:  canvas drawing routines
+     - UI:        wires DOM events to state mutations and rendering
+   ═══════════════════════════════════════════════════════════════════ */
+
+(function () {
+  "use strict";
+
+  // ── Constants ────────────────────────────────────────────────────
+  const COLS = 30;
+  const ROWS = 20;
+  const CELL_TYPES = { EMPTY: 0, WALL: 1, WEIGHT: 2 };
+  const VIS_STATES = { NONE: 0, OPEN: 1, CLOSED: 2, PATH: 3 };
+  // Movement: 4-directional (no diagonals) — matches Manhattan heuristic
+  const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+
+  // ── State ────────────────────────────────────────────────────────
+  const state = {
+    cells: [],           // 2D array [col][row] of CELL_TYPES
+    vis: [],             // 2D array [col][row] of VIS_STATES (algorithm overlay)
+    start: { x: 3, y: 10 },
+    end: { x: 26, y: 10 },
+    running: false,      // is animation in progress?
+    animQueue: [],       // queued animation frames from A*
+    pathCells: [],       // final path coordinates
+    stats: { steps: 0, visited: 0, pathCost: null, time: 0 },
+    // Interaction tracking
+    dragging: null,      // 'start' | 'end' | 'wall' | 'erase' | null
+    shiftHeld: false,
+  };
+
+  // ── Grid module ──────────────────────────────────────────────────
+  const Grid = {
+    /** Initialise empty grid arrays */
+    init() {
+      state.cells = Array.from({ length: COLS }, () => new Uint8Array(ROWS));
+      Grid.clearVis();
+    },
+
+    clearVis() {
+      state.vis = Array.from({ length: COLS }, () => new Uint8Array(ROWS));
+      state.pathCells = [];
+      state.stats = { steps: 0, visited: 0, pathCost: null, time: 0 };
+    },
+
+    inBounds(x, y) {
+      return x >= 0 && x < COLS && y >= 0 && y < ROWS;
+    },
+
+    /** Traversal cost for stepping onto cell (x,y). Walls return Infinity. */
+    cost(x, y) {
+      const t = state.cells[x][y];
+      if (t === CELL_TYPES.WALL) return Infinity;
+      if (t === CELL_TYPES.WEIGHT) return 5;
+      return 1;
+    },
+
+    isStart(x, y) { return x === state.start.x && y === state.start.y; },
+    isEnd(x, y)   { return x === state.end.x && y === state.end.y; },
+  };
+
+  // ── MinHeap (binary heap) for A* open set ────────────────────────
+  // Each entry is { key (f-score), value (node object) }.
+  // The heap guarantees O(log n) insert and O(log n) extract-min,
+  // which is critical for A* efficiency on larger grids.
+  class MinHeap {
+    constructor() { this.data = []; }
+
+    get size() { return this.data.length; }
+
+    /** Insert an element with the given priority key */
+    push(key, value) {
+      this.data.push({ key, value });
+      this._bubbleUp(this.data.length - 1);
+    }
+
+    /** Remove and return the element with the smallest key */
+    pop() {
+      const top = this.data[0];
+      const last = this.data.pop();
+      if (this.data.length > 0) {
+        this.data[0] = last;
+        this._sinkDown(0);
+      }
+      return top;
+    }
+
+    _bubbleUp(i) {
+      while (i > 0) {
+        const parent = (i - 1) >> 1;
+        if (this.data[i].key < this.data[parent].key) {
+          [this.data[i], this.data[parent]] = [this.data[parent], this.data[i]];
+          i = parent;
+        } else break;
+      }
+    }
+
+    _sinkDown(i) {
+      const n = this.data.length;
+      while (true) {
+        let smallest = i;
+        const l = 2 * i + 1, r = 2 * i + 2;
+        if (l < n && this.data[l].key < this.data[smallest].key) smallest = l;
+        if (r < n && this.data[r].key < this.data[smallest].key) smallest = r;
+        if (smallest !== i) {
+          [this.data[i], this.data[smallest]] = [this.data[smallest], this.data[i]];
+          i = smallest;
+        } else break;
+      }
+    }
+  }
+
+  // ── A* Algorithm ─────────────────────────────────────────────────
+  const AStar = {
+    /**
+     * Run A* and return an array of "frames" for step-by-step animation.
+     * Each frame = { type: 'open'|'close'|'path', x, y }
+     *
+     * A* maintains two sets:
+     *   - Open set (frontier): nodes discovered but not yet fully evaluated.
+     *     Stored in a min-heap keyed by f(n) = g(n) + h(n).
+     *   - Closed set: nodes whose cheapest path is already known.
+     *
+     * g(n) = actual cost from start to n
+     * h(n) = heuristic estimate from n to goal (Manhattan distance here)
+     * f(n) = g(n) + h(n)  — the estimated total cost through n
+     *
+     * Manhattan distance is admissible (never overestimates) for 4-directional
+     * movement with uniform cost ≥ 1, guaranteeing an optimal path.
+     */
+    run() {
+      const frames = [];
+      const { start, end } = state;
+
+      // g-scores: cheapest known cost from start to each cell
+      const gScore = Array.from({ length: COLS }, () => new Float64Array(ROWS).fill(Infinity));
+      // Track which cells are in the closed set
+      const closed = Array.from({ length: COLS }, () => new Uint8Array(ROWS));
+      // Parent pointers for path reconstruction: encode parent as col*ROWS+row, or -1
+      const cameFrom = Array.from({ length: COLS }, () => new Int32Array(ROWS).fill(-1));
+
+      /** Manhattan distance — the admissible heuristic for 4-directional grids */
+      const h = (x, y) => Math.abs(x - end.x) + Math.abs(y - end.y);
+
+      const open = new MinHeap();
+      gScore[start.x][start.y] = 0;
+      open.push(h(start.x, start.y), { x: start.x, y: start.y });
+
+      let found = false;
+
+      while (open.size > 0) {
+        // Extract the node with smallest f = g + h from the frontier
+        const { value: current } = open.pop();
+        const { x: cx, y: cy } = current;
+
+        // Skip if we already processed this cell (duplicate heap entries)
+        if (closed[cx][cy]) continue;
+        closed[cx][cy] = 1;
+
+        // Record a "close" frame for the animation (cell moves to visited set)
+        if (!Grid.isStart(cx, cy) && !Grid.isEnd(cx, cy)) {
+          frames.push({ type: "close", x: cx, y: cy });
+        }
+
+        // Goal reached — reconstruct path by following parent pointers
+        if (cx === end.x && cy === end.y) {
+          found = true;
+          let px = cx, py = cy;
+          const path = [];
+          while (cameFrom[px][py] !== -1) {
+            const encoded = cameFrom[px][py];
+            px = (encoded / ROWS) | 0;
+            py = encoded % ROWS;
+            if (!Grid.isStart(px, py) && !Grid.isEnd(px, py)) {
+              path.push({ type: "path", x: px, y: py });
+            }
+          }
+          // Reverse so the path animates from start → end
+          path.reverse();
+          frames.push(...path);
+          break;
+        }
+
+        // Expand each 4-directional neighbour
+        for (const [dx, dy] of DIRS) {
+          const nx = cx + dx, ny = cy + dy;
+          if (!Grid.inBounds(nx, ny)) continue;
+          if (closed[nx][ny]) continue;
+
+          const moveCost = Grid.cost(nx, ny);
+          if (moveCost === Infinity) continue; // wall — impassable
+
+          // Tentative g-score via current node
+          const tentG = gScore[cx][cy] + moveCost;
+
+          // Only update if this path is cheaper than any previously found
+          if (tentG < gScore[nx][ny]) {
+            gScore[nx][ny] = tentG;
+            cameFrom[nx][ny] = cx * ROWS + cy; // encode parent
+            const f = tentG + h(nx, ny);
+            open.push(f, { x: nx, y: ny });
+
+            // Record an "open" frame (cell enters frontier)
+            if (!Grid.isStart(nx, ny) && !Grid.isEnd(nx, ny)) {
+              frames.push({ type: "open", x: nx, y: ny });
+            }
+          }
+        }
+      }
+
+      return {
+        frames,
+        found,
+        pathCost: found ? gScore[end.x][end.y] : null,
+      };
+    },
+  };
+
+  // ── Renderer ─────────────────────────────────────────────────────
+  const canvas = document.getElementById("grid-canvas");
+  const ctx = canvas.getContext("2d");
+  let cellSize = 0;
+
+  const Renderer = {
+    /** Compute pixel dimensions so each cell is square */
+    resize() {
+      const wrapWidth = canvas.parentElement.clientWidth - 20; // padding
+      cellSize = Math.floor(wrapWidth / COLS);
+      canvas.width = cellSize * COLS;
+      canvas.height = cellSize * ROWS;
+      Renderer.draw();
+    },
+
+    draw() {
+      const w = canvas.width, hh = canvas.height;
+      ctx.clearRect(0, 0, w, hh);
+
+      for (let x = 0; x < COLS; x++) {
+        for (let y = 0; y < ROWS; y++) {
+          const px = x * cellSize, py = y * cellSize;
+
+          // Base cell colour based on type
+          let fill = "#181c28"; // empty
+          const cellType = state.cells[x][y];
+          if (cellType === CELL_TYPES.WALL)   fill = "#3b4261";
+          if (cellType === CELL_TYPES.WEIGHT) fill = "#5e4a1e";
+
+          // Algorithm overlay takes visual priority over base
+          const v = state.vis[x][y];
+          if (v === VIS_STATES.OPEN)   fill = "rgba(96,165,250,0.35)";
+          if (v === VIS_STATES.CLOSED) fill = "rgba(140,120,220,0.32)";
+          if (v === VIS_STATES.PATH)   fill = "#d4a017";
+
+          ctx.fillStyle = fill;
+          ctx.fillRect(px, py, cellSize, cellSize);
+
+          // Weighted terrain marker (small diamond) visible even under vis overlay
+          if (cellType === CELL_TYPES.WEIGHT && v !== VIS_STATES.PATH) {
+            ctx.fillStyle = "rgba(251,191,36,0.25)";
+            const cx0 = px + cellSize / 2, cy0 = py + cellSize / 2, r = cellSize * 0.2;
+            ctx.beginPath();
+            ctx.moveTo(cx0, cy0 - r);
+            ctx.lineTo(cx0 + r, cy0);
+            ctx.lineTo(cx0, cy0 + r);
+            ctx.lineTo(cx0 - r, cy0);
+            ctx.closePath();
+            ctx.fill();
+          }
+
+          // Grid lines
+          ctx.strokeStyle = "#232738";
+          ctx.lineWidth = 0.5;
+          ctx.strokeRect(px, py, cellSize, cellSize);
+        }
+      }
+
+      // Draw path with glow
+      if (state.pathCells.length > 0) {
+        ctx.shadowColor = "#fbbf24";
+        ctx.shadowBlur = 8;
+        for (const { x, y } of state.pathCells) {
+          ctx.fillStyle = "#fbbf24";
+          ctx.fillRect(x * cellSize + 1, y * cellSize + 1, cellSize - 2, cellSize - 2);
+        }
+        ctx.shadowBlur = 0;
+      }
+
+      // Start node (rounded rect with icon)
+      Renderer.drawNode(state.start.x, state.start.y, "#34d399", "#065f46", "S");
+      // End node
+      Renderer.drawNode(state.end.x, state.end.y, "#f87171", "#7f1d1d", "E");
+    },
+
+    drawNode(gx, gy, fg, bg, label) {
+      const px = gx * cellSize, py = gy * cellSize;
+      const pad = Math.max(2, cellSize * 0.1);
+      ctx.fillStyle = bg;
+      Renderer.roundRect(px + pad, py + pad, cellSize - pad * 2, cellSize - pad * 2, 4);
+      ctx.fill();
+      ctx.fillStyle = fg;
+      Renderer.roundRect(px + pad + 1, py + pad + 1, cellSize - pad * 2 - 2, cellSize - pad * 2 - 2, 3);
+      ctx.fill();
+      ctx.fillStyle = bg;
+      ctx.font = `bold ${Math.max(10, cellSize * 0.45)}px sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(label, px + cellSize / 2, py + cellSize / 2 + 1);
+    },
+
+    roundRect(x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.arcTo(x + w, y, x + w, y + r, r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+      ctx.lineTo(x + r, y + h);
+      ctx.arcTo(x, y + h, x, y + h - r, r);
+      ctx.lineTo(x, y + r);
+      ctx.arcTo(x, y, x + r, y, r);
+      ctx.closePath();
+    },
+  };
+
+  // ── Maze Generation (Recursive Division) ─────────────────────────
+  // Produces corridors by recursively dividing the grid with walls
+  // and carving single-cell passages, creating an interesting maze.
+  const Maze = {
+    generate() {
+      Grid.init();
+      // Fill borders
+      for (let x = 0; x < COLS; x++) { state.cells[x][0] = 1; state.cells[x][ROWS - 1] = 1; }
+      for (let y = 0; y < ROWS; y++) { state.cells[0][y] = 1; state.cells[COLS - 1][y] = 1; }
+      Maze._divide(1, 1, COLS - 2, ROWS - 2);
+      // Ensure start/end are clear
+      state.cells[state.start.x][state.start.y] = 0;
+      state.cells[state.end.x][state.end.y] = 0;
+      // Sprinkle some weighted terrain for visual interest
+      for (let i = 0; i < 40; i++) {
+        const rx = 1 + ((Math.random() * (COLS - 2)) | 0);
+        const ry = 1 + ((Math.random() * (ROWS - 2)) | 0);
+        if (state.cells[rx][ry] === 0 && !Grid.isStart(rx, ry) && !Grid.isEnd(rx, ry)) {
+          state.cells[rx][ry] = CELL_TYPES.WEIGHT;
+        }
+      }
+    },
+
+    _divide(x, y, w, h) {
+      if (w < 2 || h < 2) return;
+
+      // Choose orientation: prefer splitting the longer dimension
+      const horizontal = (h > w) ? true : (w > h) ? false : Math.random() < 0.5;
+
+      if (horizontal) {
+        // Pick an even row for the wall so passages (odd rows) stay open
+        const wy = y + 2 * ((Math.random() * ((h - 1) / 2) | 0)) + 1;
+        // Carve a passage at a random column
+        const px = x + ((Math.random() * w) | 0);
+        for (let i = x; i < x + w; i++) {
+          if (i !== px) state.cells[i][wy] = CELL_TYPES.WALL;
+        }
+        Maze._divide(x, y, w, wy - y);
+        Maze._divide(x, wy + 1, w, y + h - wy - 1);
+      } else {
+        const wx = x + 2 * ((Math.random() * ((w - 1) / 2) | 0)) + 1;
+        const py = y + ((Math.random() * h) | 0);
+        for (let j = y; j < y + h; j++) {
+          if (j !== py) state.cells[wx][j] = CELL_TYPES.WALL;
+        }
+        Maze._divide(x, y, wx - x, h);
+        Maze._divide(wx + 1, y, x + w - wx - 1, h);
+      }
+    },
+  };
+
+  // ── UI Wiring ────────────────────────────────────────────────────
+  const UI = {
+    els: {},
+
+    init() {
+      UI.els = {
+        btnVis:       document.getElementById("btn-visualize"),
+        btnClearPath: document.getElementById("btn-clear-path"),
+        btnClearAll:  document.getElementById("btn-clear-all"),
+        btnMaze:      document.getElementById("btn-maze"),
+        speedSlider:  document.getElementById("speed-slider"),
+        speedVal:     document.getElementById("speed-val"),
+        statSteps:    document.getElementById("stat-steps"),
+        statVisited:  document.getElementById("stat-visited"),
+        statPathLen:  document.getElementById("stat-pathlen"),
+        statTime:     document.getElementById("stat-time"),
+        banner:       document.getElementById("msg-banner"),
+      };
+
+      UI.els.btnVis.addEventListener("click", UI.startVisualize);
+      UI.els.btnClearPath.addEventListener("click", UI.clearPath);
+      UI.els.btnClearAll.addEventListener("click", UI.clearAll);
+      UI.els.btnMaze.addEventListener("click", UI.randomMaze);
+      UI.els.speedSlider.addEventListener("input", () => {
+        UI.els.speedVal.textContent = UI.els.speedSlider.value;
+      });
+
+      // Canvas mouse/touch events
+      canvas.addEventListener("mousedown", UI.onPointerDown);
+      canvas.addEventListener("mousemove", UI.onPointerMove);
+      window.addEventListener("mouseup", UI.onPointerUp);
+      canvas.addEventListener("contextmenu", e => e.preventDefault());
+
+      // Touch support
+      canvas.addEventListener("touchstart", UI.onTouchStart, { passive: false });
+      canvas.addEventListener("touchmove", UI.onTouchMove, { passive: false });
+      canvas.addEventListener("touchend", UI.onPointerUp);
+
+      window.addEventListener("keydown", e => { if (e.key === "Shift") state.shiftHeld = true; });
+      window.addEventListener("keyup",   e => { if (e.key === "Shift") state.shiftHeld = false; });
+      window.addEventListener("resize", Renderer.resize);
+    },
+
+    /** Map pixel coords to grid cell */
+    pixelToGrid(px, py) {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      return {
+        x: ((px - rect.left) * scaleX / cellSize) | 0,
+        y: ((py - rect.top) * scaleY / cellSize) | 0,
+      };
+    },
+
+    onPointerDown(e) {
+      if (state.running) return;
+      const { x, y } = UI.pixelToGrid(e.clientX, e.clientY);
+      if (!Grid.inBounds(x, y)) return;
+
+      if (Grid.isStart(x, y))     { state.dragging = "start"; return; }
+      if (Grid.isEnd(x, y))       { state.dragging = "end"; return; }
+
+      if (e.button === 2) { state.dragging = "erase"; }
+      else                { state.dragging = state.shiftHeld ? "weight" : "wall"; }
+
+      UI.applyDraw(x, y);
+    },
+
+    onPointerMove(e) {
+      if (!state.dragging) return;
+      const { x, y } = UI.pixelToGrid(e.clientX, e.clientY);
+      if (!Grid.inBounds(x, y)) return;
+
+      if (state.dragging === "start") {
+        if (state.cells[x][y] !== CELL_TYPES.WALL && !Grid.isEnd(x, y)) {
+          state.start.x = x; state.start.y = y;
+        }
+      } else if (state.dragging === "end") {
+        if (state.cells[x][y] !== CELL_TYPES.WALL && !Grid.isStart(x, y)) {
+          state.end.x = x; state.end.y = y;
+        }
+      } else {
+        UI.applyDraw(x, y);
+      }
+      Renderer.draw();
+    },
+
+    onPointerUp() { state.dragging = null; },
+
+    onTouchStart(e) {
+      e.preventDefault();
+      const t = e.touches[0];
+      const { x, y } = UI.pixelToGrid(t.clientX, t.clientY);
+      if (!Grid.inBounds(x, y)) return;
+      if (Grid.isStart(x, y))     { state.dragging = "start"; return; }
+      if (Grid.isEnd(x, y))       { state.dragging = "end"; return; }
+      state.dragging = "wall";
+      UI.applyDraw(x, y);
+    },
+
+    onTouchMove(e) {
+      e.preventDefault();
+      const t = e.touches[0];
+      UI.onPointerMove({ clientX: t.clientX, clientY: t.clientY });
+    },
+
+    applyDraw(x, y) {
+      if (Grid.isStart(x, y) || Grid.isEnd(x, y)) return;
+      if (state.dragging === "wall")        state.cells[x][y] = CELL_TYPES.WALL;
+      else if (state.dragging === "weight") state.cells[x][y] = CELL_TYPES.WEIGHT;
+      else if (state.dragging === "erase")  state.cells[x][y] = CELL_TYPES.EMPTY;
+      Renderer.draw();
+    },
+
+    showBanner(text, type) {
+      UI.els.banner.textContent = text;
+      UI.els.banner.className = "message-banner visible " + type;
+      clearTimeout(UI._bannerTimer);
+      UI._bannerTimer = setTimeout(() => {
+        UI.els.banner.classList.remove("visible");
+      }, 4000);
+    },
+
+    updateStats() {
+      UI.els.statSteps.textContent = state.stats.steps;
+      UI.els.statVisited.textContent = state.stats.visited;
+      UI.els.statPathLen.textContent = state.stats.pathCost != null ? state.stats.pathCost : "—";
+      UI.els.statTime.textContent = state.stats.time;
+    },
+
+    // ── Visualisation Animation ──────────────────────────────────
+    startVisualize() {
+      if (state.running) return;
+      Grid.clearVis();
+      UI.updateStats();
+      Renderer.draw();
+
+      const t0 = performance.now();
+      const result = AStar.run();
+      const elapsed = Math.round(performance.now() - t0);
+
+      state.animQueue = result.frames;
+      state.running = true;
+      UI.els.btnVis.disabled = true;
+
+      let idx = 0;
+      let visitedCount = 0;
+      let stepCount = 0;
+      const pathCells = [];
+
+      function tick() {
+        const speed = +UI.els.speedSlider.value;
+        // Process `speed` frames per animation tick
+        for (let s = 0; s < speed && idx < state.animQueue.length; s++, idx++) {
+          const frame = state.animQueue[idx];
+          stepCount++;
+
+          if (frame.type === "open") {
+            state.vis[frame.x][frame.y] = VIS_STATES.OPEN;
+          } else if (frame.type === "close") {
+            state.vis[frame.x][frame.y] = VIS_STATES.CLOSED;
+            visitedCount++;
+          } else if (frame.type === "path") {
+            state.vis[frame.x][frame.y] = VIS_STATES.PATH;
+            pathCells.push({ x: frame.x, y: frame.y });
+          }
+        }
+
+        state.pathCells = pathCells;
+        state.stats.steps = stepCount;
+        state.stats.visited = visitedCount;
+        state.stats.time = elapsed;
+        UI.updateStats();
+        Renderer.draw();
+
+        if (idx < state.animQueue.length) {
+          requestAnimationFrame(tick);
+        } else {
+          // Animation complete
+          state.running = false;
+          UI.els.btnVis.disabled = false;
+          state.stats.pathCost = result.pathCost;
+          UI.updateStats();
+
+          if (result.found) {
+            UI.showBanner(`Path found! Cost: ${result.pathCost}`, "success");
+          } else {
+            UI.showBanner("No path exists — the end node is unreachable.", "error");
+          }
+        }
+      }
+
+      requestAnimationFrame(tick);
+    },
+
+    clearPath() {
+      if (state.running) return;
+      Grid.clearVis();
+      UI.updateStats();
+      UI.els.banner.classList.remove("visible");
+      Renderer.draw();
+    },
+
+    clearAll() {
+      if (state.running) return;
+      Grid.init();
+      state.start = { x: 3, y: 10 };
+      state.end = { x: 26, y: 10 };
+      UI.updateStats();
+      UI.els.banner.classList.remove("visible");
+      Renderer.draw();
+    },
+
+    randomMaze() {
+      if (state.running) return;
+      Maze.generate();
+      Grid.clearVis();
+      UI.updateStats();
+      UI.els.banner.classList.remove("visible");
+      Renderer.draw();
+    },
+  };
+
+  // ── Bootstrap ────────────────────────────────────────────────────
+  Grid.init();
+  UI.init();
+  Renderer.resize();
+
+})();
+</script>
+</body>
+</html>
