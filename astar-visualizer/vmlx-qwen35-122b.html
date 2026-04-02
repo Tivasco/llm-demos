@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A* Pathfinding Visualizer</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --surface-color: #1e1e1e;
+            --primary-color: #3b82f6;
+            --text-primary: #e5e7eb;
+            --text-secondary: #9ca3af;
+            --border-color: #333;
+            --accent-start: #10b981; /* Green */
+            --accent-end: #ef4444;   /* Red */
+            --accent-wall: #374151;  /* Dark Gray */
+            --accent-weight: #d97706; /* Amber/Sand */
+            --accent-path: #f59e0b;  /* Yellow */
+        }
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        /* --- Layout --- */
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 1000px;
+            padding: 20px;
+            gap: 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        p.subtitle {
+            margin: 5px 0 0 0;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        /* --- Canvas --- */
+        .canvas-wrapper {
+            position: relative;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            background-color: var(--surface-color);
+            cursor: crosshair;
+        }
+
+        canvas {
+            display: block;
+            border-radius: 4px;
+        }
+
+        /* --- Controls --- */
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            align-items: center;
+            background: var(--surface-color);
+            padding: 15px;
+            border-radius: 8px;
+            width: 100%;
+            border: 1px solid var(--border-color);
+        }
+
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+            outline: none;
+        }
+
+        button:hover {
+            filter: brightness(1.1);
+            transform: translateY(-1px);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button.secondary {
+            background-color: #4b5563;
+        }
+
+        button.danger {
+            background-color: #dc2626;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .slider-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-left: 10px;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 120px;
+            height: 6px;
+            background: #4b5563;
+            border-radius: 3px;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: var(--text-primary);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: background .15s ease-in-out;
+        }
+
+        /* --- Stats Panel --- */
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .stat-card {
+            background: var(--surface-color);
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 4px;
+        }
+
+        .stat-value {
+            font-size: 1.1rem;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* --- Legend --- */
+        .legend {
+            display: flex;
+            gap: 15px;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .swatch {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+        }
+
+        /* --- Responsive --- */
+        @media (max-width: 600px) {
+            .stats {
+                grid-template-columns: 1fr 1fr;
+            }
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .slider-group {
+                margin-left: 0;
+                justify-content: space-between;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>A* Pathfinding Visualizer</h1>
+        <p class="subtitle">Left-click: Walls | Right-click: Erase | Shift+Drag: Weighted | Drag Nodes: Move</p>
+    </header>
+
+    <div class="canvas-wrapper">
+        <canvas id="gridCanvas"></canvas>
+    </div>
+
+    <div class="controls">
+        <button id="btnVisualize">Visualize A*</button>
+        <button id="btnClearPath" class="secondary">Clear Path</button>
+        <button id="btnClearAll" class="danger">Clear All</button>
+        <button id="btnRandom" class="secondary">Random Maze</button>
+
+        <div class="slider-group">
+            <span style="font-size: 0.8rem; color: var(--text-secondary)">Speed</span>
+            <input type="range" id="speedSlider" min="1" max="50" value="10">
+        </div>
+    </div>
+
+    <div class="stats">
+        <div class="stat-card">
+            <div class="stat-label">Steps</div>
+            <div class="stat-value" id="statSteps">0</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Visited</div>
+            <div class="stat-value" id="statVisited">0</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Path Cost</div>
+            <div class="stat-value" id="statCost">0</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Time</div>
+            <div class="stat-value" id="statTime">0ms</div>
+        </div>
+    </div>
+
+    <div class="legend">
+        <div class="legend-item"><div class="swatch" style="background: var(--accent-start)"></div>Start</div>
+        <div class="legend-item"><div class="swatch" style="background: var(--accent-end)"></div>Target</div>
+        <div class="legend-item"><div class="swatch" style="background: var(--accent-wall)"></div>Wall</div>
+        <div class="legend-item"><div class="swatch" style="background: var(--accent-weight)"></div>Weight</div>
+        <div class="legend-item"><div class="swatch" style="background: #4d4dff"></div>Open Set</div>
+        <div class="legend-item"><div class="swatch" style="background: #50c878"></div>Closed Set</div>
+        <div class="legend-item"><div class="swatch" style="background: var(--accent-path)"></div>Path</div>
+    </div>
+</div>
+
+<script>
+/**
+ * A* Pathfinding Visualizer
+ * Implements A* algorithm using a Min-Heap Priority Queue.
+ */
+
+// --- Constants & Config ---
+const CONFIG = {
+    cols: 30,
+    rows: 20,
+    colors: {
+        empty: '#222',
+        wall: '#111',
+        weight: '#d97706',
+        start: '#10b981',
+        end: '#ef4444',
+        open: '#4d4dff',    // Frontier
+        closed: '#50c878',  // Visited
+        path: '#f59e0b'
+    },
+    costs: {
+        empty: 1,
+        weight: 5,
+        wall: Infinity
+    }
+};
+
+// --- Min-Heap Priority Queue for A* ---
+class MinHeap {
+    constructor() {
+        this.heap = [];
+    }
+
+    push(node) {
+        this.heap.push(node);
+        this.bubbleUp(this.heap.length - 1);
+    }
+
+    pop() {
+        if (this.heap.length === 0) return null;
+        const top = this.heap[0];
+        const bottom = this.heap.pop();
+        if (this.heap.length > 0) {
+            this.heap[0] = bottom;
+            this.sinkDown(0);
+        }
+        return top;
+    }
+
+    // Standard A* optimization: If a node is already in the heap with higher cost,
+    // we usually want to update it. For simplicity in this visualizer, we use
+    // lazy deletion (allowing duplicates), but we handle re-adding nodes.
+
+    isEmpty() {
+        return this.heap.length === 0;
+    }
+
+    // Helper: F-value comparison
+    bubbleUp(n) {
+        while (n > 0) {
+            let parent = Math.floor((n - 1) / 2);
+            if (this.heap[n].f >= this.heap[parent].f) break;
+            [this.heap[n], this.heap[parent]] = [this.heap[parent], this.heap[n]];
+            n = parent;
+        }
+    }
+
+    sinkDown(n) {
+        const length = this.heap.length;
+        while (true) {
+            let left = 2 * n + 1;
+            let right = 2 * n + 2;
+            let swap = null;
+
+            if (left < length) {
+                if (this.heap[left].f < this.heap[n].f) swap = left;
+            }
+            if (right < length) {
+                if ((swap === null && this.heap[right].f < this.heap[n].f) ||
+                    (swap !== null && this.heap[right].f < this.heap[swap].f)) {
+                    swap = right;
+                }
+            }
+            if (swap === null) break;
+            [this.heap[n], this.heap[swap]] = [this.heap[swap], this.heap[n]];
+            n = swap;
+        }
+    }
+}
+
+// --- Cell Class ---
+class Cell {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.type = 'empty'; // 'empty', 'wall', 'weight', 'start', 'end'
+        this.f = 0;
+        this.g = 0;
+        this.h = 0;
+        this.parent = null;
+        this.isVisited = false;
+        this.inOpenSet = false;
+    }
+
+    resetPathfinding() {
+        this.f = 0;
+        this.g = 0;
+        this.h = 0;
+        this.parent = null;
+        this.isVisited = false;
+        this.inOpenSet = false;
+    }
+}
+
+// --- Application Main Class ---
+class App {
+    constructor() {
+        this.canvas = document.getElementById('gridCanvas');
+        this.ctx = this.canvas.getContext('2d');
+
+        // Grid State
+        this.grid = [];
+        this.startNode = null;
+        this.endNode = null;
+        this.cellSize = 0;
+        this.width = 0;
+        this.height = 0;
+
+        // Algorithm State
+        this.openSet = null; // MinHeap
+        this.closedSet = []; // Array
+        this.isRunning = false;
+        this.animationId = null;
+        this.stepsTaken = 0;
+        this.pathFound = false;
+        this.startTime = 0;
+        this.speed = 10;
+
+        // Interaction State
+        this.isMouseDown = false;
+        this.mouseMode = null; // 'wall', 'erase', 'weight', 'drag_start', 'drag_end'
+        this.lastMousePos = { x: -1, y: -1 };
+
+        this.init();
+    }
+
+    init() {
+        this.resizeCanvas();
+        this.createGrid();
+        this.setupListeners();
+        this.draw();
+    }
+
+    resizeCanvas() {
+        // Calculate optimal size based on screen width
+        const maxWidth = Math.min(window.innerWidth - 40, 1000);
+        const aspectRatio = CONFIG.cols / CONFIG.rows;
+
+        this.width = maxWidth;
+        this.height = this.width / aspectRatio;
+
+        // Handle High DPI
+        const dpr = window.devicePixelRatio || 1;
+        this.canvas.width = this.width * dpr;
+        this.canvas.height = this.height * dpr;
+        this.canvas.style.width = `${this.width}px`;
+        this.canvas.style.height = `${this.height}px`;
+        this.ctx.scale(dpr, dpr);
+
+        this.cellSize = this.width / CONFIG.cols;
+        this.draw();
+    }
+
+    createGrid() {
+        this.grid = new Array(CONFIG.cols).fill(null).map((_, x) =>
+            new Array(CONFIG.rows).fill(null).map((_, y) => new Cell(x, y))
+        );
+
+        // Default positions
+        this.setNodePosition('start', 1, 1);
+        this.setNodePosition('end', CONFIG.cols - 2, CONFIG.rows - 2);
+    }
+
+    setNodePosition(type, x, y) {
+        if (type === 'start' && this.startNode) this.startNode.type = 'empty';
+        if (type === 'end' && this.endNode) this.endNode.type = 'empty';
+
+        if (type === 'start') {
+            this.startNode = this.grid[x][y];
+            this.startNode.type = 'start';
+        } else {
+            this.endNode = this.grid[x][y];
+            this.endNode.type = 'end';
+        }
+    }
+
+    // --- Interaction Handlers ---
+
+    setupListeners() {
+        // Window Resize
+        window.addEventListener('resize', () => this.resizeCanvas());
+
+        // Mouse Input
+        this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+        window.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+        window.addEventListener('mouseup', () => this.handleMouseUp());
+        this.canvas.addEventListener('contextmenu', (e) => {
+            e.preventDefault(); // Block context menu
+        });
+
+        // UI Controls
+        document.getElementById('btnVisualize').addEventListener('click', () => this.startVisualizer());
+        document.getElementById('btnClearPath').addEventListener('click', () => this.clearPath());
+        document.getElementById('btnClearAll').addEventListener('click', () => this.resetGrid());
+        document.getElementById('btnRandom').addEventListener('click', () => this.generateMaze());
+        document.getElementById('speedSlider').addEventListener('input', (e) => {
+            this.speed = parseInt(e.target.value);
+        });
+    }
+
+    getMousePos(evt) {
+        const rect = this.canvas.getBoundingClientRect();
+        const scaleX = this.canvas.width / rect.width; // relationship bitmap vs element
+        const scaleY = this.canvas.height / rect.height;
+        const x = Math.floor(((evt.clientX - rect.left) * (this.width / rect.width)) / this.cellSize);
+        const y = Math.floor(((evt.clientY - rect.top) * (this.height / rect.height)) / this.cellSize);
+        return { x, y };
+    }
+
+    handleMouseDown(e) {
+        if (this.isRunning) return;
+
+        const { x, y } = this.getMousePos(e);
+        if (!this.isValidCoord(x, y)) return;
+
+        const cell = this.grid[x][y];
+        this.isMouseDown = true;
+        this.lastMousePos = { x, y };
+
+        // Determine Action
+        if (cell === this.startNode) {
+            this.mouseMode = 'drag_start';
+        } else if (cell === this.endNode) {
+            this.mouseMode = 'drag_end';
+        } else {
+            // Right click = erase, Left click = draw
+            if (e.button === 2) {
+                this.mouseMode = 'erase';
+                // Immediately erase if clicking existing wall
+                if (cell.type === 'wall' || cell.type === 'weight') cell.type = 'empty';
+            } else {
+                // Left click
+                if (e.shiftKey) {
+                    this.mouseMode = 'weight';
+                    cell.type = 'weight';
+                } else {
+                    this.mouseMode = 'wall';
+                    cell.type = 'wall';
+                }
+            }
+        }
+        this.draw();
+    }
+
+    handleMouseMove(e) {
+        if (!this.isMouseDown) return;
+
+        const { x, y } = this.getMousePos(e);
+        if (!this.isValidCoord(x, y)) return;
+
+        const cell = this.grid[x][y];
+
+        // Dragging Nodes
+        if (this.mouseMode === 'drag_start') {
+            if (cell !== this.endNode && cell.type !== 'wall') {
+                this.startNode.type = 'empty';
+                this.setNodePosition('start', x, y);
+            }
+        } else if (this.mouseMode === 'drag_end') {
+            if (cell !== this.startNode && cell.type !== 'wall') {
+                this.endNode.type = 'empty';
+                this.setNodePosition('end', x, y);
+            }
+        }
+        // Drawing Walls
+        else {
+            if (cell.type === 'start' || cell.type === 'end') return;
+
+            // If we switched modes (e.g. holding shift while dragging)
+            if (e.shiftKey && this.mouseMode !== 'weight') {
+                this.mouseMode = 'weight';
+            }
+
+            if (this.mouseMode === 'wall' && cell.type !== 'wall') cell.type = 'wall';
+            else if (this.mouseMode === 'weight' && cell.type !== 'weight') cell.type = 'weight';
+            else if (this.mouseMode === 'erase' && (cell.type === 'wall' || cell.type === 'weight')) cell.type = 'empty';
+        }
+
+        this.draw();
+    }
+
+    handleMouseUp() {
+        this.isMouseDown = false;
+        this.mouseMode = null;
+    }
+
+    isValidCoord(x, y) {
+        return x >= 0 && x < CONFIG.cols && y >= 0 && y < CONFIG.rows;
+    }
+
+    // --- Core Logic ---
+
+    // Heuristic: Manhattan Distance
+    heuristic(a, b) {
+        return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+    }
+
+    getNeighbors(cell) {
+        const neighbors = [];
+        const { x, y } = cell;
+
+        // Up, Down, Left, Right (No Diagonals)
+        const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+
+        for (let d of dirs) {
+            const nx = x + d[0];
+            const ny = y + d[1];
+
+            if (this.isValidCoord(nx, ny)) {
+                const neighbor = this.grid[nx][ny];
+                if (neighbor.type !== 'wall') {
+                    neighbors.push(neighbor);
+                }
+            }
+        }
+        return neighbors;
+    }
+
+    // --- A* Step Logic (Generator) ---
+    *aStarGenerator() {
+        this.openSet = new MinHeap();
+        this.closedSet = [];
+        this.pathFound = false;
+        this.stepsTaken = 0;
+        this.startTime = performance.now();
+
+        // Initialize Start
+        this.startNode.g = 0;
+        this.startNode.h = this.heuristic(this.startNode, this.endNode);
+        this.startNode.f = this.startNode.g + this.startNode.h;
+        this.openSet.push(this.startNode);
+        this.startNode.inOpenSet = true;
+
+        while (!this.openSet.isEmpty()) {
+            // 1. Get node with lowest f score
+            const current = this.openSet.pop();
+
+            // Check if we reached the end
+            if (current === this.endNode) {
+                this.pathFound = true;
+                return; // Stop generator
+            }
+
+            // Move to closed set (visited)
+            current.inOpenSet = false;
+            this.closedSet.push(current);
+            current.isVisited = true;
+            this.stepsTaken++;
+
+            // Yield control to animation loop
+            yield;
+
+            // 2. Explore neighbors
+            const neighbors = this.getNeighbors(current);
+            for (let neighbor of neighbors) {
+                if (neighbor.isVisited) continue;
+
+                // Calculate tentative g score
+                const moveCost = neighbor.type === 'weight' ? CONFIG.costs.weight : CONFIG.costs.empty;
+                const tempGScore = current.g + moveCost;
+
+                // Check if this path to neighbor is better than any previous one
+                // Note: We handle "inOpenSet" logic by checking if we found a cheaper path.
+                // If neighbor is not in closed set, and (not in open set OR new path is cheaper)
+                if (!neighbor.inOpenSet || tempGScore < neighbor.g) {
+                    neighbor.parent = current;
+                    neighbor.g = tempGScore;
+                    neighbor.h = this.heuristic(neighbor, this.endNode);
+                    neighbor.f = neighbor.g + neighbor.h;
+
+                    if (!neighbor.inOpenSet) {
+                        this.openSet.push(neighbor);
+                        neighbor.inOpenSet = true;
+                    }
+                }
+            }
+        }
+    }
+
+    startVisualizer() {
+        if (this.isRunning) return;
+
+        this.clearPath(false); // Keep walls, reset path
+        this.isRunning = true;
+
+        this.generator = this.aStarGenerator();
+        this.runLoop();
+    }
+
+    runLoop() {
+        if (!this.isRunning) return;
+
+        // Run N steps per frame based on slider speed
+        for (let i = 0; i < this.speed; i++) {
+            const result = this.generator.next();
+            if (result.done) break;
+        }
+
+        this.updateStats();
+        this.draw();
+
+        if (this.pathFound) {
+            this.isRunning = false;
+            this.visualizePath();
+        } else if (this.generator.next().done) {
+            // No path found
+            this.isRunning = false;
+            document.getElementById('statSteps').innerText = "No Path Found";
+        } else {
+            this.animationId = requestAnimationFrame(() => this.runLoop());
+        }
+    }
+
+    visualizePath() {
+        // Animate the final path drawing in
+        let pathNode = this.endNode.parent;
+        const pathNodes = [];
+        while (pathNode && pathNode !== this.startNode) {
+            pathNodes.push(pathNode);
+            pathNode = pathNode.parent;
+        }
+
+        let idx = 0;
+        const animatePath = () => {
+            if (idx < pathNodes.length) {
+                pathNodes[idx].type = 'path'; // Mark visually
+                idx++;
+                this.draw();
+                requestAnimationFrame(animatePath);
+            }
+        };
+        animatePath();
+    }
+
+    clearPath(keepWalls = true) {
+        this.isRunning = false;
+        cancelAnimationFrame(this.animationId);
+        this.pathFound = false;
+
+        // Reset Grid Data
+        for (let x = 0; x < CONFIG.cols; x++) {
+            for (let y = 0; y < CONFIG.rows; y++) {
+                const cell = this.grid[x][y];
+                if (keepWalls) {
+                    cell.resetPathfinding();
+                    // Keep 'wall' and 'weight' types, reset others
+                    if (cell.type === 'empty' || cell.type === 'path') cell.type = 'empty';
+                } else {
+                    // Full reset
+                    cell.type = 'empty';
+                    cell.resetPathfinding();
+                }
+            }
+        }
+        this.updateStats();
+        this.draw();
+    }
+
+    resetGrid() {
+        this.clearPath(false);
+        this.createGrid();
+        this.draw();
+    }
+
+    generateMaze() {
+        this.clearPath(false);
+        // Simple Recursive Backtracker Maze
+        // 1. Fill all with walls
+        for (let x = 0; x < CONFIG.cols; x++) {
+            for (let y = 0; y < CONFIG.rows; y++) {
+                this.grid[x][y].type = 'wall';
+            }
+        }
+
+        const stack = [];
+        // Start at 1,1
+        const startX = 1;
+        const startY = 1;
+        this.grid[startX][startY].type = 'empty';
+        stack.push({x: startX, y: startY});
+
+        const dirs = [[0, 2], [2, 0], [0, -2], [-2, 0]]; // Step by 2 to leave walls
+
+        while (stack.length > 0) {
+            const current = stack[stack.length - 1];
+            const neighbors = [];
+
+            for (let d of dirs) {
+                const nx = current.x + d[0];
+                const ny = current.y + d[1];
+
+                if (nx > 0 && nx < CONFIG.cols - 1 && ny > 0 && ny < CONFIG.rows - 1) {
+                    if (this.grid[nx][ny].type === 'wall') {
+                        neighbors.push({x: nx, y: ny, dx: d[0], dy: d[1]});
+                    }
+                }
+            }
+
+            if (neighbors.length > 0) {
+                const next = neighbors[Math.floor(Math.random() * neighbors.length)];
+                // Carve path
+                this.grid[current.x + next.dx/2][current.y + next.dy/2].type = 'empty';
+                this.grid[next.x][next.y].type = 'empty';
+                stack.push({x: next.x, y: next.y});
+            } else {
+                stack.pop();
+            }
+        }
+
+        // Ensure start and end are clear
+        this.setNodePosition('start', 1, 1);
+        this.setNodePosition('end', CONFIG.cols - 2, CONFIG.rows - 2);
+        this.draw();
+    }
+
+    updateStats() {
+        document.getElementById('statSteps').innerText = this.stepsTaken;
+        document.getElementById('statVisited').innerText = this.closedSet.length;
+        if (this.pathFound) {
+            // Calculate path cost
+            let cost = 0;
+            let curr = this.endNode;
+            while(curr.parent) {
+                cost += (curr.type === 'weight' ? CONFIG.costs.weight : CONFIG.costs.empty);
+                curr = curr.parent;
+            }
+            document.getElementById('statCost').innerText = cost;
+        }
+        document.getElementById('statTime').innerText = (performance.now() - this.startTime).toFixed(1) + 'ms';
+    }
+
+    // --- Rendering ---
+
+    draw() {
+        // Clear Canvas
+        this.ctx.fillStyle = '#222'; // Background
+        this.ctx.fillRect(0, 0, this.width, this.height);
+
+        for (let x = 0; x < CONFIG.cols; x++) {
+            for (let y = 0; y < CONFIG.rows; y++) {
+                const cell = this.grid[x][y];
+                const px = x * this.cellSize;
+                const py = y * this.cellSize;
+
+                // Draw Cell Background based on type
+                let color = CONFIG.colors.empty;
+
+                if (cell.type === 'wall') color = CONFIG.colors.wall;
+                else if (cell.type === 'weight') color = CONFIG.colors.weight;
+                else if (cell.type === 'start') color = CONFIG.colors.start;
+                else if (cell.type === 'end') color = CONFIG.colors.end;
+                else if (cell.type === 'path') color = CONFIG.colors.path;
+                else if (cell.isVisited) color = CONFIG.colors.closed;
+                else if (cell.inOpenSet) color = CONFIG.colors.open;
+
+                this.ctx.fillStyle = color;
+                this.ctx.fillRect(px, py, this.cellSize, this.cellSize);
+
+                // Add a subtle grid line effect
+                this.ctx.strokeStyle = '#2a2a2a';
+                this.ctx.lineWidth = 1;
+                this.ctx.strokeRect(px, py, this.cellSize, this.cellSize);
+            }
+        }
+    }
+}
+
+// Initialize App
+window.onload = () => {
+    const app = new App();
+};
+
+</script>
+</body>
+</html>
